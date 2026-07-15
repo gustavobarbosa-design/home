@@ -1,0 +1,1120 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Validação de acessibilidade para pessoas não videntes nos apps ConectaBild e VittaFácil — Gustavo Barbosa</title>
+<meta name="description" content="Estudo de caso: processo completo de validação de acessibilidade digital (testes automatizados, testes de usabilidade com pessoas cegas reais e handoff) na Bild Desenvolvimento Imobiliário.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#FAFAFA" id="themeColorMeta">
+<link rel="canonical" href="https://gustavobarbosa.design/caso-bild-acessibilidade.html">
+
+<meta property="og:type" content="article">
+<meta property="og:title" content="Validação de acessibilidade para pessoas não videntes nos apps ConectaBild e VittaFácil — Gustavo Barbosa">
+<meta property="og:description" content="Estudo de caso: processo completo de validação de acessibilidade digital (testes automatizados, testes de usabilidade com pessoas cegas reais e handoff) na Bild Desenvolvimento Imobiliário.">
+<meta property="og:locale" content="pt_BR">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Validação de acessibilidade para pessoas não videntes nos apps ConectaBild e VittaFácil — Gustavo Barbosa">
+<meta name="twitter:description" content="Estudo de caso: processo completo de validação de acessibilidade digital (testes automatizados, testes de usabilidade com pessoas cegas reais e handoff) na Bild Desenvolvimento Imobiliário.">
+
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='24' fill='%230E0F11'/%3E%3Crect x='38' y='38' width='24' height='24' rx='4' fill='%233B5BFF'/%3E%3C/svg%3E">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Inter+Tight:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<script>
+(function(){
+  try{
+    var saved = localStorage.getItem('theme');
+    var theme = saved || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', theme);
+  }catch(e){}
+})();
+</script>
+<style>
+
+
+/* ===================================================================
+   TOKENS
+   =================================================================== */
+:root{
+  --bg:#FAFAFA;
+  --bg-elevated:#FFFFFF;
+  --ink:#0E0F11;
+  --ink-soft:#4B4F58;
+  --muted:#6B7280; /* ajustado de #8A8F98 — contraste AA (4.6:1) sobre fundo claro */
+  --border:#E7E7EA;
+  --border-strong:#D8D9DE;
+  --accent:#3B5BFF;
+  --accent-ink:#1E2A78;
+  --accent-soft:#EEF1FF;
+  --mock-1:#F4F5FA;
+  --mock-2:#EEF0F8;
+  --shadow-color:rgba(14,15,17,0.18);
+  --font-display:'Inter Tight', sans-serif;
+  --font-body:'Inter', sans-serif;
+  --font-mono:'JetBrains Mono', monospace;
+  --max-w:1160px;
+  --radius-s:8px;
+  --radius-m:14px;
+  --radius-l:20px;
+  --nav-h:64px;
+  --motion-fast:.15s ease;
+  --motion-base:.4s cubic-bezier(.16,1,.3,1);
+}
+
+:root[data-theme="dark"]{
+  --bg:#0B0C0E;
+  --bg-elevated:#15161A;
+  --ink:#F2F3F5;
+  --ink-soft:#B7BAC2;
+  --muted:#8A8F98;
+  --border:#24262C;
+  --border-strong:#33363E;
+  --accent:#5B7CFF;
+  --accent-ink:#C7D2FF;
+  --accent-soft:#1A2340;
+  --mock-1:#16181F;
+  --mock-2:#1C2030;
+  --shadow-color:rgba(0,0,0,0.45);
+}
+
+*{ box-sizing:border-box; margin:0; padding:0; }
+html{ scroll-behavior:smooth; }
+
+@media (prefers-reduced-motion: reduce){
+  html{ scroll-behavior:auto; }
+  *{ animation-duration:0.001ms !important; transition-duration:0.001ms !important; }
+}
+
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--font-body);
+  font-size:16px;
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+  transition:background var(--motion-fast), color var(--motion-fast);
+}
+
+a{ color:inherit; text-decoration:none; }
+img{ max-width:100%; display:block; }
+ul{ list-style:none; }
+::selection{ background:var(--accent); color:#fff; }
+:focus-visible{ outline:2px solid var(--accent); outline-offset:3px; border-radius:4px; }
+
+/* -- skip link (acessibilidade / navegação por teclado) -- */
+.skip-link{
+  position:absolute;
+  top:-48px;
+  left:12px;
+  z-index:100;
+  background:var(--ink);
+  color:var(--bg);
+  padding:10px 16px;
+  border-radius:8px;
+  font-size:14px;
+  font-weight:500;
+  transition:top var(--motion-fast);
+}
+.skip-link:focus{ top:12px; }
+
+.wrap{
+  max-width:var(--max-w);
+  margin:0 auto;
+  padding:0 32px;
+}
+
+h1,h2,h3,h4{
+  font-family:var(--font-display);
+  letter-spacing:-0.02em;
+  font-weight:700;
+}
+
+/* ===================================================================
+   COMPONENTES REUTILIZÁVEIS
+   =================================================================== */
+
+/* -- eyebrow / rótulo de seção -- */
+.eyebrow{
+  font-family:var(--font-mono);
+  font-size:12.5px;
+  letter-spacing:0.08em;
+  text-transform:uppercase;
+  color:var(--muted);
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.eyebrow .dot{ width:6px; height:6px; border-radius:50%; background:var(--accent); flex-shrink:0; }
+
+/* -- badge de status -- */
+.badge{
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  font-family:var(--font-mono);
+  font-size:12.5px;
+  padding:6px 12px;
+  border:1px solid var(--border-strong);
+  border-radius:999px;
+  color:var(--ink-soft);
+}
+.badge .pulse{
+  width:7px; height:7px; border-radius:50%;
+  background:#22C55E;
+  box-shadow:0 0 0 3px rgba(34,197,94,0.18);
+}
+
+/* -- botões -- */
+.btn{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:12px 20px;
+  border-radius:10px;
+  font-size:14.5px;
+  font-weight:500;
+  border:1px solid transparent;
+  transition:transform .15s ease, background .15s ease, border-color .15s ease;
+}
+.btn-primary{ background:var(--accent); color:#fff; }
+.btn-primary:hover{ opacity:.88; transform:translateY(-1px); }
+.btn-ghost{ background:transparent; color:var(--ink); border-color:var(--border-strong); }
+.btn-ghost:hover{ border-color:var(--ink); transform:translateY(-1px); }
+
+/* -- chip / tag -- */
+.chip{
+  font-size:12.5px;
+  padding:5px 11px;
+  background:var(--accent-soft);
+  color:var(--accent-ink);
+  border-radius:999px;
+  font-weight:500;
+  display:inline-block;
+}
+.chip-outline{
+  font-size:13.5px;
+  padding:7px 13px;
+  border:1px solid var(--border);
+  border-radius:8px;
+  background:var(--bg-elevated);
+  display:inline-block;
+}
+
+/* -- card genérico -- */
+.card{
+  background:var(--bg-elevated);
+  border:1px solid var(--border);
+  border-radius:var(--radius-l);
+  transition:border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+}
+.card:hover{
+  border-color:var(--border-strong);
+  box-shadow:0 20px 40px -24px var(--shadow-color);
+  transform:translateY(-2px);
+}
+
+/* -- stat -- */
+.stat .stat-num{ font-family:var(--font-mono); font-size:26px; font-weight:500; color:var(--ink); }
+.stat .stat-label{ font-size:13px; color:var(--muted); margin-top:6px; }
+
+/* -- cabeçalho de seção -- */
+.section-head{ max-width:640px; margin-bottom:56px; }
+.section-head h2{ font-size:clamp(26px, 3.6vw, 38px); margin-top:14px; }
+.section-head p{ color:var(--ink-soft); font-size:16px; margin-top:14px; max-width:52ch; }
+
+section{ padding:100px 0; }
+
+/* ===================================================================
+   NAV
+   =================================================================== */
+body.no-scroll{ overflow:hidden; }
+
+.site-nav{
+  position:sticky;
+  top:0;
+  z-index:50;
+  background:color-mix(in srgb, var(--bg) 86%, transparent);
+  backdrop-filter:blur(10px);
+  -webkit-backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--border);
+  transition:box-shadow var(--motion-fast), background var(--motion-fast), border-color var(--motion-fast);
+}
+.site-nav .wrap{
+  height:64px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+}
+.brand{
+  font-family:var(--font-display);
+  font-weight:700;
+  font-size:16px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.brand-mark{
+  width:34px; height:34px;
+  border-radius:9px;
+  background:var(--accent);
+  color:#fff;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-family:var(--font-mono);
+  font-size:13px;
+  flex-shrink:0;
+}
+
+.nav-links{
+  display:flex;
+  align-items:center;
+  gap:32px;
+  font-size:14.5px;
+  color:var(--ink-soft);
+}
+.nav-links a:hover{ color:var(--ink); }
+.nav-links a[aria-current="true"]{ color:var(--accent); }
+.nav-cta{
+  padding:9px 16px;
+  background:var(--accent);
+  color:#fff !important;
+  border-radius:999px;
+  font-weight:500;
+  transition:opacity var(--motion-fast);
+}
+.nav-cta:hover{ opacity:.88; }
+
+.nav-right{ display:flex; align-items:center; gap:12px; }
+
+/* -- toggle de tema -- */
+.theme-toggle{
+  width:36px; height:36px;
+  border:1px solid var(--border);
+  border-radius:8px;
+  background:var(--bg-elevated);
+  color:var(--ink);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  flex-shrink:0;
+  transition:border-color var(--motion-fast), transform var(--motion-fast);
+}
+.theme-toggle:hover{ border-color:var(--border-strong); transform:translateY(-1px); }
+.theme-toggle svg{ width:17px; height:17px; }
+.theme-toggle .icon-moon{ display:none; }
+:root[data-theme="dark"] .theme-toggle .icon-sun{ display:none; }
+:root[data-theme="dark"] .theme-toggle .icon-moon{ display:block; }
+
+/* -- botão do menu mobile (agora um <button> real, focável) -- */
+.nav-toggle-btn{
+  display:none;
+  width:36px; height:36px;
+  border:1px solid var(--border);
+  border-radius:8px;
+  background:var(--bg-elevated);
+  align-items:center;
+  justify-content:center;
+  flex-direction:column;
+  gap:4px;
+  cursor:pointer;
+  flex-shrink:0;
+}
+.nav-toggle-btn span{
+  width:16px; height:1.5px; background:var(--ink); display:block;
+  transition:transform var(--motion-fast), opacity var(--motion-fast);
+}
+.nav-toggle-btn[aria-expanded="true"] span:nth-child(1){ transform:translateY(5.5px) rotate(45deg); }
+.nav-toggle-btn[aria-expanded="true"] span:nth-child(2){ opacity:0; }
+.nav-toggle-btn[aria-expanded="true"] span:nth-child(3){ transform:translateY(-5.5px) rotate(-45deg); }
+
+.nav-mobile-panel{
+  display:none;
+  flex-direction:column;
+  gap:4px;
+}
+.nav-mobile-panel.is-open{ display:flex; }
+.nav-mobile-panel a{
+  padding:12px 4px;
+  border-top:1px solid var(--border);
+  font-size:15px;
+  color:var(--ink-soft);
+}
+.nav-mobile-panel a:first-child{ border-top:none; }
+.nav-mobile-panel a[aria-current="true"]{ color:var(--accent); }
+
+/* -- nav elevado ao rolar -- */
+.site-nav.is-scrolled{ box-shadow:0 1px 0 var(--border-strong); }
+
+/* ===================================================================
+   HERO
+   =================================================================== */
+.hero{ padding:88px 0 64px; }
+.hero-grid{
+  display:grid;
+  grid-template-columns:1.05fr 0.95fr;
+  gap:48px;
+  align-items:center;
+}
+.hero h1{
+  font-size:clamp(32px, 5vw, 54px);
+  line-height:1.1;
+  margin:20px 0 22px;
+  max-width:20ch;
+}
+.hero h1 .accent-text{ color:var(--accent); }
+.hero .lede{ font-size:17.5px; color:var(--ink-soft); max-width:48ch; margin-bottom:28px; }
+.hero-ctas{ display:flex; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
+
+.hero-panel{
+  background:var(--bg-elevated);
+  border:1px solid var(--border);
+  border-radius:var(--radius-l);
+  padding:32px;
+}
+.hero-photo{
+  display:block;
+  width:150px;
+  height:150px;
+  border-radius:var(--radius-m);
+  object-fit:cover;
+  object-position:center top;
+  margin-bottom:20px;
+}
+.hero-panel .role{ font-family:var(--font-mono); font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px; }
+.hero-panel .name{ font-family:var(--font-display); font-size:22px; font-weight:700; margin-bottom:18px; }
+.hero-panel address{ font-style:normal; }
+.hero-panel .contact-list{ display:flex; flex-direction:column; gap:10px; margin-top:18px; }
+.hero-panel .contact-list li{ display:flex; align-items:center; gap:10px; font-size:14px; color:var(--ink-soft); }
+.hero-panel .contact-list .k{ font-family:var(--font-mono); font-size:11px; color:var(--muted); min-width:64px; text-transform:uppercase; }
+.hero-panel hr{ border:none; border-top:1px solid var(--border); margin:18px 0; }
+
+/* -- faixa de indicadores -- */
+.stats-strip{
+  border-top:1px solid var(--border);
+  border-bottom:1px solid var(--border);
+}
+.stats-grid{
+  display:grid;
+  grid-template-columns:repeat(4, 1fr);
+  gap:32px;
+  padding:36px 0;
+}
+
+/* -- empresas -- */
+.logos{ padding:36px 0; border-bottom:1px solid var(--border); }
+.logos .label{ font-family:var(--font-mono); font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:24px; }
+.logos-row{ display:flex; flex-wrap:wrap; gap:36px 44px; align-items:center; }
+.logo-item{ font-family:var(--font-display); font-weight:600; font-size:17px; color:var(--border-strong); transition:color .2s ease; }
+.logo-item:hover{ color:var(--ink); }
+
+/* ===================================================================
+   EXPERIÊNCIA / CASOS
+   =================================================================== */
+.case-list{ display:flex; flex-direction:column; gap:24px; }
+.case{
+  display:grid;
+  grid-template-columns:0.8fr 1.2fr;
+  overflow:hidden;
+}
+.case-side{
+  background:linear-gradient(180deg, var(--mock-1) 0%, var(--mock-2) 100%);
+  padding:32px;
+  border-right:1px solid var(--border);
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  gap:14px;
+}
+.case-side .company{ font-family:var(--font-display); font-weight:700; font-size:18px; }
+.case-side .period{ font-family:var(--font-mono); font-size:12.5px; color:var(--muted); }
+.case-side .location{ font-size:13.5px; color:var(--ink-soft); }
+.case-body{ padding:32px 36px; }
+.case-tag{ font-family:var(--font-mono); font-size:12px; color:var(--accent); letter-spacing:0.06em; text-transform:uppercase; margin-bottom:12px; }
+.case-body h3{ font-size:21px; margin-bottom:12px; }
+.case-body ul{ display:flex; flex-direction:column; gap:8px; margin-bottom:18px; }
+.case-body ul li{
+  font-size:14.5px;
+  color:var(--ink-soft);
+  padding-left:16px;
+  position:relative;
+}
+.case-body ul li::before{
+  content:"";
+  position:absolute;
+  left:0; top:8px;
+  width:5px; height:5px;
+  border-radius:50%;
+  background:var(--accent);
+}
+.case-chips{ display:flex; gap:8px; flex-wrap:wrap; }
+
+.case-link{
+  margin-top:18px;
+  font-size:14.5px;
+  font-weight:500;
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  width:fit-content;
+  color:var(--accent);
+  transition:gap .15s ease;
+}
+.case-link:hover{ gap:10px; }
+
+/* ===================================================================
+   ESPECIALIDADES
+   =================================================================== */
+.diff-grid{
+  display:grid;
+  grid-template-columns:repeat(2, 1fr);
+  gap:20px;
+}
+.diff-card{ padding:28px; }
+.diff-card .diff-icon{
+  width:38px; height:38px;
+  border-radius:10px;
+  background:var(--accent-soft);
+  color:var(--accent);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-family:var(--font-mono);
+  font-size:14px;
+  margin-bottom:16px;
+}
+.diff-card h3{ font-size:17px; margin-bottom:10px; }
+.diff-card p{ font-size:14.5px; color:var(--ink-soft); }
+
+/* ===================================================================
+   HABILIDADES / FERRAMENTAS
+   =================================================================== */
+.skills-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:64px;
+}
+.skills-block .s-label{ font-family:var(--font-mono); font-size:12px; text-transform:uppercase; letter-spacing:0.06em; color:var(--muted); margin-bottom:14px; }
+.skills-tags{ display:flex; flex-wrap:wrap; gap:8px; }
+
+/* ===================================================================
+   CONTATO
+   =================================================================== */
+.contact-inner{ border-top:1px solid var(--border); padding-top:64px; }
+.contact h2{ font-size:clamp(28px, 5vw, 48px); max-width:16ch; margin-bottom:28px; }
+.contact-row{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-end;
+  flex-wrap:wrap;
+  gap:28px;
+}
+.contact-links{ display:flex; flex-direction:column; gap:10px; font-family:var(--font-mono); font-size:14.5px; }
+.contact-links a{ display:inline-flex; align-items:center; gap:8px; color:var(--ink-soft); transition:color .15s ease; width:fit-content; }
+.contact-links a:hover{ color:var(--accent); }
+
+/* ===================================================================
+   FOOTER
+   =================================================================== */
+footer{ border-top:1px solid var(--border); padding:28px 0; }
+footer .wrap{ display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; font-size:13px; color:var(--muted); }
+
+/* ===================================================================
+   ÂNCORAS — compensa a altura do nav sticky ao rolar
+   =================================================================== */
+section[id], main[id]{ scroll-margin-top:var(--nav-h); }
+
+/* ===================================================================
+   ANIMAÇÕES LEVES (reveal-on-scroll)
+   A classe .reveal só ganha o estado oculto quando o JS adiciona
+   .js-reveal ao <html> — sem JS, todo o conteúdo permanece visível.
+   =================================================================== */
+.js-reveal .reveal{
+  opacity:0;
+  transform:translateY(16px);
+  transition:opacity var(--motion-base), transform var(--motion-base);
+}
+.js-reveal .reveal.reveal-in{
+  opacity:1;
+  transform:translateY(0);
+}
+
+/* ===================================================================
+   BOTÃO VOLTAR AO TOPO
+   =================================================================== */
+.back-to-top{
+  position:fixed;
+  right:24px;
+  bottom:24px;
+  z-index:60;
+  width:44px; height:44px;
+  border-radius:50%;
+  background:var(--ink);
+  color:var(--bg);
+  border:1px solid var(--border-strong);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  opacity:0;
+  transform:translateY(10px);
+  pointer-events:none;
+  transition:opacity var(--motion-fast), transform var(--motion-fast), background var(--motion-fast);
+}
+.back-to-top.is-visible{
+  opacity:1;
+  transform:translateY(0);
+  pointer-events:auto;
+}
+.back-to-top:hover{ background:var(--accent); color:#fff; }
+.back-to-top svg{ width:18px; height:18px; }
+
+/* ===================================================================
+   RESPONSIVO — Desktop (padrão acima) → Tablet (≤1024px) → Mobile (≤640px)
+   Toda a reorganização usa as mesmas estruturas Flexbox/Grid já definidas.
+   =================================================================== */
+
+/* ---------- TABLET (≤1024px) ---------- */
+@media (max-width:1024px){
+  .wrap{ padding:0 28px; }
+
+  .hero-grid{ grid-template-columns:1fr; gap:36px; }
+  .hero h1{ max-width:24ch; }
+  .hero-panel{ max-width:440px; }
+
+  .stats-grid{ grid-template-columns:1fr 1fr; row-gap:28px; }
+
+  .case{ grid-template-columns:1fr; }
+  .case-side{ border-right:none; border-bottom:1px solid var(--border); flex-direction:row; flex-wrap:wrap; gap:6px 20px; align-items:baseline; }
+
+  .diff-grid{ grid-template-columns:1fr; }
+  .skills-grid{ grid-template-columns:1fr; gap:36px; }
+}
+
+/* ---------- MOBILE (≤640px) ---------- */
+@media (max-width:640px){
+  .wrap{ padding:0 20px; }
+  section{ padding:64px 0; }
+
+  /* nav: esconde links, ativa botão + painel via JS (classe is-open) */
+  .nav-links{ display:none; }
+  .nav-toggle-btn{ display:flex; }
+  .nav-mobile-panel{
+    position:absolute;
+    top:64px; left:0; right:0;
+    background:var(--bg);
+    border-bottom:1px solid var(--border);
+    padding:8px 20px 20px;
+    font-size:15px;
+  }
+
+  .back-to-top{ right:16px; bottom:16px; width:40px; height:40px; }
+
+  .hero{ padding:44px 0 32px; }
+  .hero h1{ font-size:clamp(28px, 8vw, 36px); max-width:100%; }
+  .hero .lede{ font-size:15.5px; }
+  .hero-ctas{ flex-direction:column; }
+  .hero-ctas .btn{ width:100%; justify-content:center; }
+  .hero-panel{ max-width:100%; padding:24px; }
+
+  .stats-grid{ grid-template-columns:1fr 1fr; gap:24px; padding:28px 0; }
+  .logos-row{ gap:22px 26px; }
+
+  .case-body{ padding:24px; }
+  .case-side{ padding:22px; flex-direction:column; align-items:flex-start; }
+
+  .contact-row{ flex-direction:column; align-items:stretch; gap:24px; }
+  .contact-row .btn{ justify-content:center; }
+
+  footer .wrap{ flex-direction:column; align-items:flex-start; gap:6px; }
+}
+
+/* ---------- MOBILE PEQUENO (≤380px) ---------- */
+@media (max-width:380px){
+  .brand{ font-size:14.5px; }
+  .stats-grid{ grid-template-columns:1fr; }
+}
+
+/* ===================================================================
+   PÁGINA DE ESTUDO DE CASO (case-detail)
+   =================================================================== */
+.case-detail{
+  max-width:760px;
+  margin:0 auto;
+  padding:56px 32px 100px;
+}
+.case-detail__back{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  font-size:14px;
+  color:var(--ink-soft);
+  margin-bottom:32px;
+  transition:gap var(--motion-fast), color var(--motion-fast);
+}
+.case-detail__back:hover{ gap:10px; color:var(--accent); }
+
+.case-detail__eyebrow{ margin-bottom:16px; }
+.case-detail__title{
+  font-size:clamp(28px, 4.6vw, 42px);
+  line-height:1.12;
+  margin-bottom:18px;
+}
+.case-detail__summary{
+  font-size:17px;
+  color:var(--ink-soft);
+  max-width:60ch;
+  margin-bottom:32px;
+}
+
+.case-detail__meta{
+  display:flex;
+  flex-wrap:wrap;
+  gap:28px;
+  padding:24px 0;
+  border-top:1px solid var(--border);
+  border-bottom:1px solid var(--border);
+  margin-bottom:48px;
+}
+.case-detail__meta-item{ min-width:160px; }
+.case-detail__meta-item dt{
+  font-family:var(--font-mono);
+  font-size:11px;
+  color:var(--muted);
+  text-transform:uppercase;
+  letter-spacing:0.05em;
+  margin-bottom:6px;
+}
+.case-detail__meta-item dd{ font-size:14.5px; font-weight:500; }
+
+.case-detail__section{ margin-bottom:44px; }
+.case-detail__section h2{
+  font-size:22px;
+  margin-bottom:16px;
+}
+.case-detail__section h3{
+  font-size:16px;
+  font-family:var(--font-display);
+  margin:28px 0 10px;
+}
+.case-detail__section h3:first-of-type{ margin-top:8px; }
+.case-detail__section p{
+  font-size:16px;
+  color:var(--ink-soft);
+  max-width:66ch;
+  margin-bottom:14px;
+}
+.case-detail__section ul{ display:flex; flex-direction:column; gap:10px; max-width:66ch; }
+.case-detail__section ul li{
+  font-size:15.5px;
+  color:var(--ink-soft);
+  padding-left:18px;
+  position:relative;
+}
+.case-detail__section ul li::before{
+  content:"";
+  position:absolute;
+  left:0; top:9px;
+  width:5px; height:5px;
+  border-radius:50%;
+  background:var(--accent);
+}
+
+.case-detail__figure{ margin:24px 0 28px; max-width:66ch; }
+.case-detail__figure img{
+  width:100%;
+  display:block;
+  border-radius:var(--radius-m);
+  border:1px solid var(--border);
+}
+.case-detail__figure figcaption{
+  font-size:13px;
+  color:var(--muted);
+  margin-top:10px;
+}
+
+.case-detail__result{
+  padding:32px;
+  margin-bottom:44px;
+}
+.case-detail__result h2{ font-size:22px; margin-bottom:8px; }
+.case-detail__result > p{ color:var(--ink-soft); font-size:15px; margin-bottom:24px; max-width:66ch; }
+.case-detail__stats{
+  display:grid;
+  grid-template-columns:repeat(3, 1fr);
+  gap:24px;
+}
+
+.case-pagination{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:16px;
+  padding-top:32px;
+  margin-top:8px;
+  border-top:1px solid var(--border);
+}
+.case-pagination a{
+  font-size:14.5px;
+  font-weight:500;
+  color:var(--ink-soft);
+  transition:color var(--motion-fast);
+}
+.case-pagination a:hover{ color:var(--accent); }
+.case-pagination .next{ margin-left:auto; }
+
+/* ---------- TABLET (≤1024px) ---------- */
+@media (max-width:1024px){
+  .case-detail{ padding:48px 28px 88px; }
+}
+
+/* ---------- MOBILE (≤640px) ---------- */
+@media (max-width:640px){
+  .case-detail{ padding:36px 20px 72px; }
+  .case-detail__meta{ gap:20px; }
+  .case-detail__meta-item{ min-width:42%; }
+  .case-detail__stats{ grid-template-columns:1fr; gap:20px; }
+  .case-pagination{ flex-direction:column; align-items:flex-start; gap:10px; }
+  .case-pagination .next{ margin-left:0; }
+}
+
+</style>
+</head>
+<body>
+
+<a href="#conteudo-principal" class="skip-link">Pular para o conteúdo</a>
+
+<!-- ============ NAV ============ -->
+<header class="site-nav" id="siteNav">
+  <div class="wrap">
+    <a href="index.html" class="brand"><span class="brand-mark">GB</span>Gustavo Barbosa</a>
+    <nav class="nav-links" aria-label="Navegação principal">
+      <a href="index.html#experiencia">Experiência</a>
+      <a href="index.html#especialidades">Especialidades</a>
+      <a href="index.html#contato" class="nav-cta">Contato</a>
+    </nav>
+    <div class="nav-right">
+      <button type="button" class="theme-toggle" id="themeToggle" aria-label="Alternar tema claro/escuro" aria-pressed="false">
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </button>
+      <button type="button" class="nav-toggle-btn" id="navToggleBtn" aria-expanded="false" aria-controls="navMobilePanel" aria-label="Abrir menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </div>
+  <nav class="nav-mobile-panel" id="navMobilePanel" aria-label="Navegação mobile">
+    <a href="index.html#experiencia">Experiência</a>
+    <a href="index.html#especialidades">Especialidades</a>
+    <a href="index.html#contato">Contato</a>
+  </nav>
+</header>
+
+<main id="conteudo-principal" tabindex="-1">
+<div id="scrollSentinel" aria-hidden="true" style="position:absolute; top:220px; width:1px; height:1px;"></div>
+
+<article class="case-detail reveal">
+  <a href="index.html#experiencia" class="case-detail__back">← Voltar para o portfólio</a>
+
+  <p class="eyebrow case-detail__eyebrow"><span class="dot"></span>BILD DESENVOLVIMENTO IMOBILIÁRIO · CONSTRUÇÃO CIVIL · ACESSIBILIDADE</p>
+  <h1 class="case-detail__title">Validação de acessibilidade para pessoas não videntes nos apps ConectaBild e VittaFácil</h1>
+  <p class="case-detail__summary">Um processo completo de validação de acessibilidade digital — testes automatizados, testes de usabilidade com pessoas cegas reais e handoff estruturado para o time de front-end — conduzido para os dois principais apps do time de Inovação do grupo Bild&amp;Vitta.</p>
+
+  <dl class="case-detail__meta">
+    <div class="case-detail__meta-item"><dt>Papel</dt><dd>Product Designer, condução ponta a ponta do processo</dd></div>
+    <div class="case-detail__meta-item"><dt>Produtos</dt><dd>ConectaBild e VittaFácil</dd></div>
+    <div class="case-detail__meta-item"><dt>Período</dt><dd>mar 2021 — abr 2022</dd></div>
+  </dl>
+
+  <section class="case-detail__section">
+    <h2>Contexto</h2>
+    <p>O ConectaBild e o VittaFácil são os apps do time de Inovação do grupo Bild&amp;Vitta, responsáveis por dar autonomia aos clientes durante toda a jornada com a construtora — desde autoatendimento (solicitação de assistência técnica, agendamento de vistoria) até informação (galeria com a evolução do empreendimento, extratos financeiros, 2ª via de boleto).</p>
+    <p>Segundo o Censo IBGE de 2010, cerca de 24% da população brasileira declara algum tipo de deficiência, e uma parcela relevante desse grupo tem alguma dificuldade visual. Além do respaldo da Lei Brasileira de Inclusão da Pessoa com Deficiência, isso significava que qualquer falha de acessibilidade no Portal de Relacionamento afetava diretamente a autonomia de clientes reais — não era uma questão apenas de conformidade.</p>
+    <figure class="case-detail__figure">
+      <img src="img/ibge.webp" alt="Gráfico de barras: Visual cerca de 18,7%, Motora cerca de 7%, Auditiva cerca de 5%, Mental/intelectual cerca de 1,3%, cada uma dividida por grau de dificuldade (não consegue de modo algum, grande dificuldade, alguma dificuldade, possui). Fonte: IBGE, Censo Demográfico 2010." loading="lazy" width="698" height="576">
+      <figcaption>Porcentagem da população, por tipo e grau de dificuldade e deficiência — Brasil, 2010. Fonte: IBGE Educa.</figcaption>
+    </figure>
+  </section>
+
+  <section class="case-detail__section">
+    <h2>Problema</h2>
+    <p>Os produtos do Portal de Relacionamento nunca haviam passado por uma validação estruturada de acessibilidade visual. Em uma conversa inicial, um cliente não vidente resumiu bem o risco de testar apenas com leitores de tela sem entender o contexto real de uso — o que deixou claro que o processo precisava ir além de uma checagem técnica pontual.</p>
+  </section>
+
+  <section class="case-detail__section">
+    <h2>Papel</h2>
+    <p>Conduzi o processo do início ao fim: defini a metodologia, executei os testes automatizados, recrutei e moderei os testes de usabilidade — incluindo com clientes reais não videntes — e estruturei a documentação de handoff para o time de desenvolvimento front-end.</p>
+  </section>
+
+  <section class="case-detail__section">
+    <h2>Processo</h2>
+
+    <h3>Testes automatizados</h3>
+    <p>Validação de taxa de contraste com o plugin Able (Figma), seguindo os critérios do WCAG 2.1 (mínimo de 4,5:1 para texto normal). Na Tela Inicial, o contraste entre os cards de categoria e seus títulos ficou em 15,06:1 — dentro do padrão, com classificação AAA tanto para texto pequeno quanto grande.</p>
+    <figure class="case-detail__figure">
+      <img src="img/able_1.png" alt="Tela inicial do app, com saudação 'Olá, Evandro!' e categorias de Assistência Técnica, Financeiro e Meu Lar destacadas em um quadro vermelho." loading="lazy" width="314" height="827">
+      <figcaption>Tela Inicial — componente de Cards avaliado no teste de contraste.</figcaption>
+    </figure>
+    <figure class="case-detail__figure">
+      <img src="img/able_1_result.png" alt="Painel do plugin Able mostrando as cores 0D2840 e FFFFFF, proporção de contraste de 15.06:1, classificação AAA para texto pequeno e grande." loading="lazy" width="339" height="727">
+      <figcaption>Resultado do Able na Tela Inicial: contraste de 15,06:1, aprovado em AAA.</figcaption>
+    </figure>
+    <p>Já na tela Financeiro, o título sobre o cabeçalho apresentou apenas 2,07:1 — uma falha clara de contraste, reprovada tanto para texto pequeno quanto grande.</p>
+    <figure class="case-detail__figure">
+      <img src="img/able_2.png" alt="Tela de Financeiro do app, aba Extrato, mostrando parcelas em aberto e vencidas com baixo contraste no título do cabeçalho." loading="lazy" width="320" height="645">
+      <figcaption>Tela Financeiro — título sobre o cabeçalho avaliado no teste de contraste.</figcaption>
+    </figure>
+    <figure class="case-detail__figure">
+      <img src="img/able_2_result.png" alt="Painel do plugin Able mostrando as cores 0D2840 e 7A4D0A, proporção de contraste de 2.07:1, classificação FAIL para texto pequeno e grande." loading="lazy" width="315" height="692">
+      <figcaption>Resultado do Able na tela Financeiro: contraste de 2,07:1, reprovado (FAIL).</figcaption>
+    </figure>
+    <p>Em seguida, simulamos as quatro variações de daltonismo mais comuns — protanopia, deuteranopia, tritanopia e acromatopsia — revalidando se as combinações de cor da Tela Inicial continuavam legíveis em cada cenário.</p>
+    <figure class="case-detail__figure">
+      <img src="img/adee.png" alt="Três versões da tela inicial do app simuladas: Protanopia/Deuteranopia em tons de verde, Tritanopia em tons de azul e rosa, e Acromia em escala de cinza." loading="lazy" width="577" height="454">
+      <figcaption>Simulações de daltonismo aplicadas à Tela Inicial — Protanopia/Deuteranopia, Tritanopia e Acromia.</figcaption>
+    </figure>
+
+    <h3>Teste piloto interno</h3>
+    <p>Antes de ir a campo, conduzi testes de usabilidade adaptados com 4 designers e 2 desenvolvedores front-end da própria Inovação, vendados, para validar o roteiro. Ficou claro nessa etapa que a equipe ainda estava numa curva de aprendizado com leitores de tela — reforçando que só testar com a equipe não seria suficiente.</p>
+    <figure class="case-detail__figure">
+      <img src="img/teste_usabilidade.png" alt="Duas pessoas sentadas a uma mesa em uma sala de reunião: uma segurando um celular durante o teste, outra observando um notebook." loading="lazy" width="539" height="293">
+      <figcaption>Condução do teste de usabilidade adaptado com colaboradores da Inovação.</figcaption>
+    </figure>
+
+    <h3>Testes com usuários reais</h3>
+    <p>Antes de desenhar o roteiro final, também revisei dados sobre como pessoas com deficiência visual costumam navegar no contexto desktop, o que ajudou a calibrar as expectativas de cada tarefa.</p>
+    <figure class="case-detail__figure">
+      <img src="img/metodos_desktop.png" alt="Gráfico de pizza e tabela sobre métodos de navegação: item por item 39,6%, pelos cabeçalhos 27,9%, pelos links 24,4%, busca da página 6,6%, marcas/regiões 1,6%." loading="lazy" width="634" height="569">
+      <figcaption>Métodos e atalhos de navegação mais usados no contexto desktop por pessoas com deficiência visual.</figcaption>
+    </figure>
+    <p>Recrutei, via o time de Inteligência de Clientes, um casal de clientes do ConectaBild que são não videntes. Como os testes precisaram ser remotos, apliquei antes uma pré-triagem (plataforma de videoconferência mais acessível, modelo do smartphone, leitor de tela usado) para preparar a sessão. O roteiro cobriu 4 tarefas construídas a partir dos fluxos mais usados no Google Analytics, com um desenvolvedor front-end como observador. Cada tarefa foi documentada e tabulada no Notion.</p>
+    <figure class="case-detail__figure">
+      <img src="img/task_A.png" alt="Tabela no Notion da Tarefa A: consultar a jornada do empreendimento e solicitar atendimento ao SAC, com colunas de Suposição, notas do usuário e Oportunidades." loading="lazy" width="694" height="370">
+      <figcaption>Tabulação da Tarefa A — consulta da jornada do empreendimento e solicitação de atendimento ao SAC.</figcaption>
+    </figure>
+    <figure class="case-detail__figure">
+      <img src="img/task_D.png" alt="Tabela no Notion da Tarefa D: atualizar o número de telefone no Perfil, com colunas de Suposição, notas do usuário e Oportunidade — destacando falta de descrição no menu Perfil." loading="lazy" width="690" height="363">
+      <figcaption>Tabulação da Tarefa D — atualização de telefone no Perfil, revelando a falta de descrição nos ícones do menu.</figcaption>
+    </figure>
+    <p>Ao final, os participantes responderam ao questionário SUS (System Usability Scale), além de comentários qualitativos sobre a experiência.</p>
+
+    <h3>Handoff</h3>
+    <p>Os achados foram documentados e priorizados por criticidade, destacando que ajustes no TalkBack (Android) nem sempre resolviam o mesmo problema no VoiceOver (iOS) — cada plataforma exigiu tratamento específico.</p>
+    <figure class="case-detail__figure">
+      <img src="img/handoff.png" alt="Tabela de handoff com colunas Título, Descrição, Etiqueta, Tags e Criticidade, incluindo itens como 'Incluir descrição para todos os botões do Menu' com criticidade 5 estrelas." loading="lazy" width="680" height="355">
+      <figcaption>Tabulação de oportunidades de melhoria priorizadas por criticidade, entregue ao time de desenvolvimento.</figcaption>
+    </figure>
+  </section>
+
+  <section class="case-detail__section case-detail__result card">
+    <h2>Resultado</h2>
+    <p>O processo revelou desde problemas críticos de contraste até a ausência de descrição em ícones do menu principal — e terminou com uma pontuação de usabilidade bem acima do esperado:</p>
+    <div class="case-detail__stats">
+      <div class="stat">
+        <p class="stat-num">90/100</p>
+        <p class="stat-label">no SUS — acima do mínimo de 68 para um teste bem avaliado</p>
+      </div>
+      <div class="stat">
+        <p class="stat-num">2</p>
+        <p class="stat-label">sprints de 15 dias para implementar as correções priorizadas</p>
+      </div>
+      <div class="stat">
+        <p class="stat-num">8</p>
+        <p class="stat-label">pessoas envolvidas nos testes (designers, devs e clientes reais)</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="case-detail__section">
+    <h2>Aprendizado</h2>
+    <p>Testar apenas com leitores de tela não garante acessibilidade — só entendendo o contexto real de uma pessoa não vidente é possível encontrar as falhas que realmente importam. Ficou claro também que iOS e Android exigem correções específicas, e que acessibilidade só se sustenta como cultura contínua, envolvendo produto, design e desenvolvimento juntos — não como uma validação pontual antes do lançamento.</p>
+  </section>
+
+  <nav class="case-pagination" aria-label="Outros estudos de caso">
+    <a href="caso-itau-pix.html">← Anterior: Pix & Limites transacionais</a>
+    <a href="index.html#experiencia" class="next">Voltar para todos os estudos de caso →</a>
+  </nav>
+</article>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>© 2026 Gustavo Henrique Barbosa.</span>
+    <span>Product Designer · Ribeirão Preto, SP</span>
+  </div>
+</footer>
+
+<button type="button" class="back-to-top" id="backToTop" aria-label="Voltar ao topo">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+</button>
+
+<script>
+(function(){
+  "use strict";
+
+  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var scrollBehavior = reduceMotion ? 'auto' : 'smooth';
+
+  /* =================================================================
+     1) DARK MODE
+     ================================================================= */
+  var root = document.documentElement;
+  var themeToggle = document.getElementById('themeToggle');
+  var themeColorMeta = document.getElementById('themeColorMeta');
+
+  function currentTheme(){
+    return root.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+  }
+
+  function applyThemeColor(theme){
+    themeColorMeta.setAttribute('content', theme === 'dark' ? '#0B0C0E' : '#FAFAFA');
+  }
+
+  function setTheme(theme){
+    root.setAttribute('data-theme', theme);
+    try{ localStorage.setItem('theme', theme); }catch(e){}
+    themeToggle.setAttribute('aria-pressed', theme === 'dark' ? 'true' : 'false');
+    applyThemeColor(theme);
+  }
+
+  // sincroniza o botão com o tema já aplicado no <head> (evita flash)
+  themeToggle.setAttribute('aria-pressed', currentTheme() === 'dark' ? 'true' : 'false');
+  applyThemeColor(currentTheme());
+
+  themeToggle.addEventListener('click', function(){
+    setTheme(currentTheme() === 'dark' ? 'light' : 'dark');
+  });
+
+  /* =================================================================
+     2) MENU MOBILE
+     ================================================================= */
+  var navToggleBtn = document.getElementById('navToggleBtn');
+  var navPanel = document.getElementById('navMobilePanel');
+
+  function openMenu(){
+    navPanel.classList.add('is-open');
+    navToggleBtn.setAttribute('aria-expanded', 'true');
+    navToggleBtn.setAttribute('aria-label', 'Fechar menu');
+    document.body.classList.add('no-scroll');
+  }
+  function closeMenu(focusButton){
+    navPanel.classList.remove('is-open');
+    navToggleBtn.setAttribute('aria-expanded', 'false');
+    navToggleBtn.setAttribute('aria-label', 'Abrir menu');
+    document.body.classList.remove('no-scroll');
+    if(focusButton) navToggleBtn.focus();
+  }
+
+  navToggleBtn.addEventListener('click', function(){
+    if(navPanel.classList.contains('is-open')) closeMenu(false);
+    else openMenu();
+  });
+
+  // fecha ao clicar em um link do painel
+  navPanel.querySelectorAll('a').forEach(function(link){
+    link.addEventListener('click', function(){ closeMenu(false); });
+  });
+
+  // fecha com Esc
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Escape' && navPanel.classList.contains('is-open')) closeMenu(true);
+  });
+
+  // fecha ao clicar fora do menu
+  document.addEventListener('click', function(e){
+    if(!navPanel.classList.contains('is-open')) return;
+    if(navPanel.contains(e.target) || navToggleBtn.contains(e.target)) return;
+    closeMenu(false);
+  });
+
+  /* =================================================================
+     3) SCROLL SUAVE (âncoras internas)
+     ================================================================= */
+  document.querySelectorAll('a[href^="#"]').forEach(function(link){
+    link.addEventListener('click', function(e){
+      var id = link.getAttribute('href').slice(1);
+      var target = document.getElementById(id);
+      if(!target) return;
+      e.preventDefault();
+      target.scrollIntoView({ behavior: scrollBehavior, block: 'start' });
+      // atualiza a URL sem forçar novo salto de scroll
+      history.pushState(null, '', '#' + id);
+    });
+  });
+
+  /* =================================================================
+     4) NAV ELEVADO + BOTÃO VOLTAR AO TOPO
+     via IntersectionObserver em uma sentinela — sem scroll listeners
+     ================================================================= */
+  var siteNav = document.getElementById('siteNav');
+  var backToTop = document.getElementById('backToTop');
+  var sentinel = document.getElementById('scrollSentinel');
+
+  if('IntersectionObserver' in window && sentinel){
+    var topObserver = new IntersectionObserver(function(entries){
+      entries.forEach(function(entry){
+        var scrolled = !entry.isIntersecting;
+        siteNav.classList.toggle('is-scrolled', scrolled);
+        backToTop.classList.toggle('is-visible', scrolled);
+      });
+    });
+    topObserver.observe(sentinel);
+  } else {
+    // fallback sem IntersectionObserver
+    backToTop.classList.add('is-visible');
+  }
+
+  backToTop.addEventListener('click', function(){
+    window.scrollTo({ top: 0, behavior: scrollBehavior });
+    document.getElementById('conteudo-principal').focus();
+  });
+
+  /* =================================================================
+     5) ANIMAÇÕES LEVES (reveal-on-scroll)
+     Só ativa o estado oculto via classe no <html>; sem JS, nada some.
+     ================================================================= */
+  var revealEls = document.querySelectorAll('.reveal');
+  if(!reduceMotion && 'IntersectionObserver' in window && revealEls.length){
+    root.classList.add('js-reveal');
+    var revealObserver = new IntersectionObserver(function(entries){
+      entries.forEach(function(entry){
+        if(entry.isIntersecting){
+          entry.target.classList.add('reveal-in');
+          revealObserver.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+    revealEls.forEach(function(el){ revealObserver.observe(el); });
+  }
+
+  /* =================================================================
+     6) SCROLLSPY — destaca o link da seção visível
+     ================================================================= */
+  var sections = document.querySelectorAll('main section[id]');
+  var navLinks = document.querySelectorAll('.nav-links a[href^="#"], .nav-mobile-panel a[href^="#"]');
+
+  if('IntersectionObserver' in window && sections.length){
+    var spyObserver = new IntersectionObserver(function(entries){
+      entries.forEach(function(entry){
+        if(!entry.isIntersecting) return;
+        var id = entry.target.getAttribute('id');
+        navLinks.forEach(function(link){
+          var match = link.getAttribute('href') === '#' + id;
+          link.toggleAttribute('aria-current', match);
+          if(match) link.setAttribute('aria-current', 'true');
+        });
+      });
+    }, { rootMargin: '-45% 0px -50% 0px' });
+    sections.forEach(function(sec){ spyObserver.observe(sec); });
+  }
+
+})();
+</script>
+
+</body>
+</html>
